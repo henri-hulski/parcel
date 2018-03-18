@@ -94,8 +94,9 @@ class JSPackager extends Packager {
   }
 
   dedupeKey(asset) {
-    // cannot rely *only* on generated JS for deduplication as paths like `../` can
-    // cause 2 identical JS files to be different depending on filesystem locations
+    // cannot rely *only* on generated JS for deduplication because paths like
+    // `../` can cause 2 identical JS files to behave differently depending on
+    // where they are located on the filesystem
     let deps = Array.from(asset.dependencies.keys()).map(dep =>
       this.bundler.resolver.resolveFilename(dep, asset.name)
     );
