@@ -14,20 +14,6 @@ const prelude = {
     .replace(/;$/, '')
 };
 
-const dedupKey = asset => {
-  // cannot rely only on generated JS for deduplication as paths like `../` can
-  // cause 2 identical JS files to be different depending on filesystem locations
-  return {
-    generatedJs: asset.generated.js,
-    dependencyPaths: Array.from(asset.dependencies.keys()).map(dep => {
-      if (dep.startsWith('.')) {
-        return path.join(asset.name, dep);
-      }
-      return dep;
-    })
-  };
-};
-
 class JSPackager extends Packager {
   async start() {
     this.first = true;
@@ -49,13 +35,13 @@ class JSPackager extends Packager {
   }
 
   async addAsset(asset) {
-    if (this.dedupe.has(dedupKey(asset))) {
+    if (this.dedupe.has(this.dedupeKey(asset))) {
       return;
     }
 
     // Don't dedupe when HMR is turned on since it messes with the asset ids
     if (!this.options.hmr) {
-      this.dedupe.set(dedupKey(asset), asset.id);
+      this.dedupe.set(this.dedupeKey(asset), asset.id);
     }
 
     let deps = {};
@@ -74,7 +60,7 @@ class JSPackager extends Packager {
         deps[dep.name] = bundles;
         this.bundleLoaders.add(mod.type);
       } else {
-        deps[dep.name] = this.dedupe.get(dedupKey(mod)) || mod.id;
+        deps[dep.name] = this.dedupe.get(this.dedupeKey(mod)) || mod.id;
 
         // If the dep isn't in this bundle, add it to the list of external modules to preload.
         // Only do this if this is the root JS bundle, otherwise they will have already been
@@ -105,6 +91,16 @@ class JSPackager extends Packager {
     }
 
     return name;
+  }
+
+  dedupeKey(asset) {
+    // cannot rely *only* on generated JS for deduplication as paths like `../` can
+    // cause 2 identical JS files to be different depending on filesystem locations
+    let deps = Array.from(asset.dependencies.keys()).map(dep =>
+      this.bundler.resolver.resolveFilename(dep, asset.name)
+    );
+    deps.sort();
+    return JSON.stringify([asset.generated.js, deps]);
   }
 
   async writeModule(id, code, deps = {}, map) {
